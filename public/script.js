@@ -1,4 +1,4 @@
-const socket = io("http://localhost:3000");
+const socket = io();
 
 const submitBtn = document.getElementById("submit");
 const selectionsEl = document.getElementById("selections");
