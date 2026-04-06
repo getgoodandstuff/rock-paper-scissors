@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>multiplayer</title>
+</head>
+
+<body>
+    
+    <form id="choice-form">
+        <fieldset>
+            <legend>Choose your move</legend>
+            <label><input type="radio" name="choice" value="rock" checked> Rock</label>
+            <label><input type="radio" name="choice" value="paper"> Paper</label>
+            <label><input type="radio" name="choice" value="scissors"> Scissors</label>
+        </fieldset>
+        <button type="button" id="submit">Submit</button>
+    </form>
+    <h2 id="winner"></h2>
+    <h3 id="selections"></h3>
+
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+
+</body>
+
+</html>
