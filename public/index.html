@@ -4,12 +4,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>multiplayer</title>
+    <title>Rock Paper Scissors</title>
+    <link rel="shortcut icon" href="images/favicon.ico" type="image/x-icon">
+    <link rel="manifest" href="manifest.json">
 </head>
 
 <body>
-    
+
     <form id="choice-form">
+        <h1>Rock Paper Scissors</h1>
+        <h2 id="player">You are Player </h2>
+        <h2>Player 1: <span id="score1">0</span></h2>
+        <h2>Player 2: <span id="score2">0</span></h2>
+        <h2>Ties: <span id="ties">0</span></h2>
         <fieldset>
             <legend>Choose your move</legend>
             <label><input type="radio" name="choice" value="rock" checked> Rock</label>
