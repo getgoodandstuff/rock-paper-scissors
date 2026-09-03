@@ -5,53 +5,113 @@ const io = require('socket.io')(server);
 
 app.use(express.static('public'));
 
-let players = [];
-let choices = {};
-let score = { player1: 0, player2: 0, ties: 0 };
+const rooms = new Map();
+let nextRoomId = 1;
 
 io.on('connection', socket => {
-    players.push(socket.id);
-    io.to(socket.id).emit('displayPlayer', 'You are Player ' + players.length);
-    // console.log('a user connected', socket.id);
+    //if there is a room with only one player, join that room, otherwise create a new room
+    let room = [...rooms.values()].find(room => room.players.length === 1);
+    if (!room) {
+        room = {
+            id: `room-${nextRoomId++}`,
+            players: [],
+            choices: {},
+            score: { player1: 0, player2: 0, ties: 0 }
+        };
+        rooms.set(room.id, room);
+    }
+
+    // adds the player to the room and notifies them of their player number
+    room.players.push(socket.id);
+    socket.join(room.id);
+    socket.data.roomId = room.id;
+    io.to(room.id).emit('playerJoinedRoom', room.players.length);
+
+    io.to(socket.id).emit('displayPlayer', 'You are Player ' + room.players.length);
+    console.log('a user connected', socket.id);
     socket.on('selectChoice', (choice) => {
-        choices[socket.id] = choice;
+        const room = rooms.get(socket.data.roomId);
+        if (!room || room.players.length !== 2) {
+            return;
+        }
+
+        room.choices[socket.id] = choice;
         // Check if both players have made their choices then send winner
-        if (Object.keys(choices).length === 2) {
-            const [player1, player2] = players;
-            const choice1 = choices[player1];
-            const choice2 = choices[player2];
+        if (Object.keys(room.choices).length === 2) {
+            const [player1, player2] = room.players;
+            const choice1 = room.choices[player1];
+            const choice2 = room.choices[player2];
             if ((choice1 === 'rock' && choice2 === 'scissors') ||
                 (choice1 === 'paper' && choice2 === 'rock') ||
                 (choice1 === 'scissors' && choice2 === 'paper')) {
-                score.player1++;
-                io.to(player1).emit('winner', `Winner!`, score);
-                io.to(player2).emit('winner', `Loser!`, score);
+                room.score.player1++;
+                io.to(player1).emit('winner', `Winner!`, room.score);
+                io.to(player2).emit('winner', `Loser!`, room.score);
             } else if ((choice2 === 'rock' && choice1 === 'scissors') ||
                 (choice2 === 'paper' && choice1 === 'rock') ||
                 (choice2 === 'scissors' && choice1 === 'paper')) {
-                score.player2++;
-                io.to(player1).emit('winner', `Loser!`, score);
-                io.to(player2).emit('winner', `Winner!`, score);
+                room.score.player2++;
+                io.to(player1).emit('winner', `Loser!`, room.score);
+                io.to(player2).emit('winner', `Winner!`, room.score);
             } else {
-                score.ties++;
-                io.emit('winner', "Tie!", score);
+                room.score.ties++;
+                io.to(room.id).emit('winner', "Tie!", room.score);
             }
         } else {
-            io.to(socket.id).emit('choiceSelected', choices, socket.id);
+            io.to(socket.id).emit('choiceSelected', room.choices, socket.id);
         }
     });
 
     socket.on('restartGame', () => {
-        choices = {};
-        io.emit('restartGame');
+        const room = rooms.get(socket.data.roomId);
+        if (!room) {
+            return;
+        }
+
+        room.choices = {};
+        io.to(room.id).emit('restartGame');
     });
 
     socket.on('disconnect', () => {
         // console.log('user disconnected', socket.id);
-        players = players.filter(player => player !== socket.id);
-        delete choices[socket.id];
-        io.emit('restartGame'); // Reset game if a player disconnects
-        io.emit('displayPlayer', `You are Player ${players.length}`); // Update player number
+        const room = rooms.get(socket.data.roomId);
+        if (!room) {
+            return;
+        }
+
+        if (room.players.length === 0) {
+            rooms.delete(room.id);
+            return;
+        }
+
+        // Clean up the room and notify the remaining player
+        room.choices = {};
+        room.score = { player1: 0, player2: 0, ties: 0 };
+        room.players = room.players.filter(player => player !== socket.id);
+        const remainingPlayerId = room.players[0];
+        io.to(room.id).emit('playerDisconnected');
+        io.to(remainingPlayerId).emit('displayPlayer', 'You are Player 1');
+
+        //Look for another room with only one player and move the remaining player there
+        let newRoom = [...rooms.values()].find(r => r.players.length === 1 && r.id !== room.id);
+        if (newRoom) {
+            const remainingSocket = io.sockets.sockets.get(remainingPlayerId);
+
+            if (!remainingSocket) {
+                return;
+            }
+            //moves the remaining player to the new room and notifies them of their player number
+            remainingSocket.leave(room.id);
+            remainingSocket.join(newRoom.id);
+            remainingSocket.data.roomId = newRoom.id;
+            newRoom.players.push(remainingPlayerId);
+            remainingSocket.emit('displayPlayer', 'You are Player 2');
+            io.to(newRoom.id).emit('playerJoinedRoom', newRoom.players.length);
+
+            rooms.delete(room.id);
+            return;
+        }
+
     });
 });
 
